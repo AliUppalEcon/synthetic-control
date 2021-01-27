@@ -1,5 +1,27 @@
+# ============================================================================
+    
+# Programme: synthetic_control_monte_carlo
+# Author: Ali Uppal
+# Date: 04/12/2020
+# Purpose: ECON 220 E assignment
+
+# This programme has the following sections:
+# (0)  Preliminaries
+# (1)  Synthetic control function
+# (2)  Randomisation inference function
+# (3)  Question 3
+# (4)  Question 4
+# (5)  Question 5
+# (6)  Notes to self
+
+# ============================================================================
+
+# ===================
+# (0) Preliminaries
+# ===================
 
 rm(list = ls())
+
 # install.packages("pracma")
 # install.packages("matrixcalc")
 # install.packages("limSolve")
@@ -7,39 +29,68 @@ library("pracma")
 library("matrixcalc")
 library("limSolve")
 
+# ==============================
+# (1) Synthetic control function
+# ==============================
+
+# This function delivers the optimal weights for the synthetic control
 sc <- function(treated, control){
-    J <- dim(control)[2] # Number of units in donor pool (Y0)
+    # Number of units in donor pool is J (i.e., control units)
+    J = dim(control)[2] 
+    
+    # Row vector of 1s (number of columns = units in donor pool)
     e = matrix(1, 1, J)
+    
+    # Constraints that weights must sum to 1 (ex=f)
     f = 1
+    
+    # Square matrix (JxJ) with with ones along diagonal
     g = diag(x=1, J, J)
+    
+    # Weights are non-negative (gx>=h) (removing this improves fit, but by extrapolating!)
     h = matrix(0, J, 1)
+    
+    # Least Squares with Equalities and Inequalities to solve weights
     weights = lsei(A=control, B=treated,E=e,F=f,G=g,H=h, type=2)$X
     return(list(weights=weights))
 }
 
+# ====================================
+# (2) Randomisation inference function
+# ====================================
+
+# This function generates a p-value using randomisation inference
 ri <- function(observed,T0,T1){
-    J1 <- dim(observed)[2]
+    # Number of total units (treated + control)
+    J1 = dim(observed)[2]
     
-    #Add other test statistics
+    # Test statistics under consideration
     RMSPE = rep(NA,J1)
 
+    # RI requires looping over all units (assigning each one the treatment status)
     for (j in 1:(J1)){
-        treated <- observed[,j] # Making jth unit the "treated"
-        control <- observed[,-j] # Excludes the jth column and uses everything else as control
+        # Making jth unit the "treated"
+        treated = observed[,j] 
         
-        # Caluculate synthetic control and weights
-        weights <- sc(treated[1:T0],control[1:T0,])$weights
+        # Excludes the jth column and uses everything else as control
+        control = observed[,-j] 
+        
+        # Caluculate the synthetic control and weights (uses sc function!)
+        weights = sc(treated[1:T0],control[1:T0,])$weights
         synth_control = control%*%weights
         
-        # Calculate treatment effect
-        effect <- treated - synth_control
-        effect_pre <- effect[1:T0]
-        effect_post <- effect[(T0+1):T1]
-        # test statistic is the ration of RMSPEs
-        RMSPE[j] <- sqrt(mean(effect_post^2))/sqrt(mean(effect_pre^2))
+        # Calculate treatment effect (treatment takes place at T0+1)
+        effect = treated - synth_control
+        effect_pre = effect[1:T0]
+        effect_post = effect[(T0+1):T1]
+        
+        # Results from each test statitic for a given unit j
+        RMSPE[j] = sqrt(mean(effect_post^2))/sqrt(mean(effect_pre^2))
     }
     
-    pvalue_RMPSE <- mean(RMSPE>=RMSPE[1])
+    # Pvalue for each test stat is proportion of placebos with a greater test stat
+    # than actual treated unit which is the first entry in the matrix
+    pvalue_RMPSE = mean(RMSPE>=RMSPE[1])
     return(list(pvalue_RMSPE=pvalue_RMPSE))
 }
 
@@ -152,6 +203,7 @@ gen_treatment <- function(case, lambda, T0, T1){
     treatment_vec[(T0+1):T1] = lambda
     return(treatment_vec)
 }
+
 
 apply_treatment <- function(case, observed, treatment_vec){
     treated_data = observed
