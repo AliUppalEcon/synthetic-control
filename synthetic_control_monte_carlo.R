@@ -35,20 +35,20 @@ library("limSolve")
 
 # This function delivers the optimal weights for the synthetic control
 sc <- function(treated, control){
-    # Number of units in donor pool is J (i.e., control units)
-    J = dim(control)[2] 
+    # Number of units in donor pool is J0 (i.e., control units)
+    J0 = dim(control)[2] 
     
     # Row vector of 1s (number of columns = units in donor pool)
-    e = matrix(1, 1, J)
+    e = matrix(1, 1, J0)
     
     # Constraints that weights must sum to 1 (ex=f)
     f = 1
     
     # Square matrix (JxJ) with with ones along diagonal
-    g = diag(x=1, J, J)
+    g = diag(x=1, J0, J0)
     
     # Weights are non-negative (gx>=h) (removing this improves fit, but by extrapolating!)
-    h = matrix(0, J, 1)
+    h = matrix(0, J0, 1)
     
     # Least Squares with Equalities and Inequalities to solve weights
     weights = lsei(A=control, B=treated,E=e,F=f,G=g,H=h, type=2)$X
@@ -108,36 +108,7 @@ ri <- function(observed,T0,T1){
 
 gen_data<- function(case, J1, T1){
     data_mat = matrix(NA,T1,J1)
-    # if(case != 1){
-    #     # Creating Tx(J+1) iid shocks
-    #     eta = matrix(rnorm(J+1,0,1 - rho^2), T1, J1)
-    #     
-    #     eps = matrix(0, T1, J1)
-    #     # Initializing t=0 epsilons
-    #     eps[1,] = eta[1,]
-    #     
-    #     # Epsilons are AR(1) process
-    #     for (i in 2:T1){
-    #         eps[i,] = rho * eps[i-1,] + eta[i,]
-    #     }
-    #     
-    #     # Defining time fixed effects
-    #     F = matrix(rnorm(T1,0,1), T1, 1)
-    #     
-    #     # Defining unit fixed effects
-    #     alpha = matrix(0, 1, J1)
-    #     for (i in 1:J1){
-    #         alpha[,i] = rnorm(1,i/J1,1)
-    #     }
-    #     
-    #     # Generate common factors
-    #     F.mat = repmat(F, 1, J1)
-    #     alpha.mat = repmat(alpha, T1, 1)
-    #     
-    #     # Generate untreated outcomes
-    #     data_mat = alpha.mat + F.mat + eps
-    #     
-    # }
+
     if (case == 4){
         data_mat = matrix(rexp(J1*T1),T1,J1)
     }
@@ -191,25 +162,6 @@ gen_data<- function(case, J1, T1){
     return(data_mat)
 }
 
-# gen_treatment <- function(case, lambda, T0, T1){
-#     lambda_vec = rep(0, T1)
-#     lambda_vec[(T0+1):T1] = lambda
-#     treatment_vec = rep(0, T1)
-#     
-#     if(case == 3){
-#         treatment_vec = lambda_vec
-#         # l.vec = linspace(-T0+1, T1-T0,T1) # Vector of time offsets from T0
-#         # treatment.vec = hadamard.prod(lambda.vec, l.vec) # Creates a treatment vector that is time varying like Firpo
-#     }
-#     else if (case == 2){
-#         treatment_vec = lambda_vec
-#     }
-#     else if (case == 1){
-#         treatment_vec = lambda_vec
-#     }
-#     return(treatment_vec)
-# }
-
 gen_treatment <- function(case, lambda, T0, T1){
     treatment_vec = rep(0, T1)
     treatment_vec[(T0+1):T1] = lambda
@@ -230,40 +182,55 @@ apply_treatment <- function(case, observed, treatment_vec){
     return(treated_data)
 }
 
-T1  = 25
-T0 = 15
-J = 19
-J1 = J + 1
-# rho = 0.99
+simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1){
+    
+    lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
+    pvalue_RMSPE_mat = matrix(NA,sims,lambda_vals+1)
+    pvalue_tstat_mat = matrix(NA,sims,lambda_vals+1)
+    pvalue_post_mat = matrix(NA,sims,lambda_vals+1)
+    
+    for (iter1 in 1:(lambda_vals+1)){
+        lambda_test = lambda_seq[iter1]
+        for (iter2 in 1:sims){
+            
+            data_mat = gen_data(case, J1, T1)
+            
+            if (varying){
+                treatment_vec = gen_treatment_varying(case, lambda_test, T0, T1)
+            }
+            else{ 
+                treatment_vec = gen_treatment(case, lambda_test, T0, T1)
+            }
+
+            observed = apply_treatment(case, data_mat, treatment_vec)
+            
+            results = ri(observed,T0,T1)
+            pvalue_RMSPE_mat[iter2, iter1] = results$pvalue_RMSPE
+            pvalue_tstat_mat[iter2, iter1] = results$pvalue_tstat
+            pvalue_post_mat[iter2, iter1] = results$pvalue_post
+        }
+        
+    }
+    return(list(pvalue_RMSPE_mat=pvalue_RMSPE_mat, pvalue_tstat_mat=pvalue_tstat_mat,pvalue_post_mat=pvalue_post_mat))
+}
 
 # Simulation Parameters
-sims = 500
-lambda_vals = 0
-lambda_seq = linspace(0.5, 0.5, lambda_vals+1)
 
-pvalue_RMSPE_mat = matrix(NA,sims,lambda_vals+1)
-pvalue_tstat_mat = matrix(NA,sims,lambda_vals+1)
-pvalue_post_mat = matrix(NA,sims,lambda_vals+1)
+T1  = 25
+T0 = 15
+J0 = 19
+J1 = J0 + 1
+
+sims = 500
+lambda_vals = 1
+lambda_start = 0
+lambda_end = 1
 
 case = 3
 
-for (iter1 in 1:(lambda_vals+1)){
-    lambda_test = lambda_seq[iter1]
-    for (iter2 in 1:sims){
-        
-        data_mat = gen_data(case, J1, T1)
+varying = TRUE
 
-        treatment_vec = gen_treatment_varying(case, lambda_test, T0, T1)
-
-        observed = apply_treatment(case, data_mat, treatment_vec)
-        
-        results = ri(observed,T0,T1)
-        pvalue_RMSPE_mat[iter2, iter1] = results$pvalue_RMSPE
-        pvalue_tstat_mat[iter2, iter1] = results$pvalue_tstat
-        pvalue_post_mat[iter2, iter1] = results$pvalue_post
-    }
-    
-}
+simulation = simulate(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1)
 
 # Plot p-values conditional on size
 space = 10
@@ -279,8 +246,10 @@ for (i in 0:space+1){
 
 plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
 lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="green")
-#legend(x, y=NULL, legend, fill, col, bg)
+lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
+legend("topleft", legend=c("RMSPE", "T-stat","Post-Treatment"),
+       col=c("red", "blue","black"),lty=1:1, cex=0.8)
+
 
 # #Rejection rates
 # size = 0.10
