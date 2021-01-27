@@ -2,17 +2,21 @@
     
 # Programme: synthetic_control_monte_carlo
 # Author: Ali Uppal
-# Date: 04/12/2020
+# Date: 27/01/2021
 # Purpose: ECON 220 E assignment
 
 # This programme has the following sections:
 # (0)  Preliminaries
 # (1)  Synthetic control function
 # (2)  Randomisation inference function
-# (3)  Question 3
-# (4)  Question 4
-# (5)  Question 5
-# (6)  Notes to self
+# (3)  Generate data function
+# (4)  Generate treatment functions
+# (5)  Generate treatment application function
+# (6)  Generate monte carlo simulation function
+# (7)  Generate size control checking function
+# (8)  Generate power curve creation function
+# (9)  Conduct monte carlo analysis
+# (10) Notes to self
 
 # ============================================================================
 
@@ -32,6 +36,7 @@ library("matrixcalc")
 library("limSolve")
 library("tidyverse")
 library("ggplot2")
+
 
 # ==============================
 # (1) Synthetic control function
@@ -59,6 +64,7 @@ sc <- function(treated, control){
     return(list(weights=weights))
 }
 
+
 # ====================================
 # (2) Randomisation inference function
 # ====================================
@@ -68,7 +74,7 @@ ri <- function(observed,T0,T1){
     # Number of total units (treated + control)
     J1 = dim(observed)[2]
     
-    # gen blah
+    # Generate empty matrix to store the actual treated and synthetic control
     actual_synth_control = rep(NA,T1)
     actual_treated = rep(NA,T1)
     
@@ -85,7 +91,7 @@ ri <- function(observed,T0,T1){
         # Excludes the jth column and uses everything else as control
         control = observed[,-j] 
         
-        # Caluculate the synthetic control and weights (uses sc function!)
+        # Caluculate the synthetic control and weights using sc function
         weights = sc(treated[1:T0],control[1:T0,])$weights
         synth_control = control%*%weights
         
@@ -118,17 +124,22 @@ ri <- function(observed,T0,T1){
     return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat, pvalue_post=pvalue_post, actual_treated=actual_treated, actual_synth_control=actual_synth_control))
 }
 
+
 # ==========================
 # (3) Generate data function
 # ==========================
-
-gen_data<- function(case, J1, T1){
+# This function uses different DGPs to generate the data.
+gen_data<- function(DGP, J1, T1){
+    # Generate an empty data matrix where rows = time periods, cols = units
     data_mat = matrix(NA,T1,J1)
-
-    if (case == 4){
+    
+    # if DGP=4, draw from exponention dist. 
+    if (DGP == 4){
         data_mat = matrix(rexp(J1*T1),T1,J1)
     }
-    else if(case == 3){
+    
+    # if DGP=3, draw from normal dist with twfe. 
+    else if(DGP == 3){
         # Creating T1xJ1 iid shocks
         eps = matrix(rnorm(J1*T1,0,1), T1, J1)
         
@@ -140,7 +151,8 @@ gen_data<- function(case, J1, T1){
         for (i in 2:J1){
             unit_fe[,i] = rnorm(1,0,1)
         }
-        unit_fe[,1] = -1.1 * abs(min(unit_fe[2:J1])) # We are setting the treated unit to be at the bottom of the distribution. We are taking the minimum of the control units and making sure teh treated unit_fe is 10% lower than the minimum
+        # Set treatment unit's fe as 10% lower than the minimum of control unit fe
+        unit_fe[,1] = -1.1 * abs(min(unit_fe[2:J1])) 
         
         # Generate common factors
         time_fe_mat = repmat(time_fe, 1, J1)
@@ -148,9 +160,10 @@ gen_data<- function(case, J1, T1){
         
         # Generate untreated outcomes
         data_mat = unit_fe + time_fe_mat + eps
-        
     }
-    else if(case == 2){
+    
+    # if DGP=2, draw from normal dist with twfe. 
+    else if(DGP == 2){
         # Creating T1xJ1 iid shocks
         eps = matrix(rnorm(J1*T1,0,1), T1, J1)
         
@@ -162,17 +175,19 @@ gen_data<- function(case, J1, T1){
         for (i in 2:J1){
             unit_fe[,i] = rnorm(1,0,1)
         }
-        unit_fe[,1] = mean(unit_fe[2:J1]) # We are setting the treated unit to be in the middle of the distribution
-        
+        # Set treated unit to be in the middle of the distribution of control unit fe
+            unit_fe[,1] = mean(unit_fe[2:J1]) 
+            
         # Generate common factors
         time_fe_mat = repmat(time_fe, 1, J1)
         unit_fe = repmat(unit_fe, T1, 1)
         
         # Generate untreated outcomes
         data_mat = unit_fe + time_fe_mat + eps
-        
     }
-    else if (case == 1){
+    
+    # if DGP=1, draw from normal dist only. 
+    else if (DGP == 1){
         data_mat = matrix(rnorm(J1*T1),T1,J1)
     }
     return(data_mat)
@@ -181,67 +196,94 @@ gen_data<- function(case, J1, T1){
 # ================================
 # (4) Generate treatment functions
 # ================================
-
-gen_treatment <- function(case, lambda, T0, T1){
+# This function generates a vector of a constant treatment shifter
+gen_treatment <- function(DGP, lambda, T0, T1){
+    # Treatment vector is zero until treatment period
     treatment_vec = rep(0, T1)
+    
+    # Treatment vector is lambda every period after treatment period
     treatment_vec[(T0+1):T1] = lambda
     return(treatment_vec)
 }
 
-gen_treatment_varying <- function(case, lambda, T0, T1){
+# This function generates a vector of a time-varying treatment shifter
+gen_treatment_varying <- function(DGP, lambda, T0, T1){
+    # Treatment vector is zero until treatment period
     treatment_vec = rep(0, T1)
+    
+    # Treatment vector is lambda every period after treatment period
     treatment_vec[(T0+1):T1] = lambda
+    
+    # Set treatment vector to be increasing linearly over time
     time_offset = linspace(-T0+1, T1-T0,T1)
     treatment_vec = hadamard.prod(treatment_vec, time_offset)
     return(treatment_vec)
 }
 
+
 # ===========================================
-# (4) Generate treatment application function
+# (5) Generate treatment application function
 # ===========================================
-apply_treatment <- function(case, observed, treatment_vec){
+# This function applies the treatment shifter to the treated data
+apply_treatment <- function(DGP, observed, treatment_vec){
     treated_data = observed
-    treated_data[,1] = treated_data[,1] + treatment_vec # This adds the treatment vector to the first column of untreated values. This makes the first column the treated unit
+    
+    # Add treatment vector to 1st column of untreated values. Thus, 1st column is treated unit
+    treated_data[,1] = treated_data[,1] + treatment_vec 
     return(treated_data)
 }
 
+
 # ============================================
-# (4) Generate monte carlo simulation function
+# (6) Generate monte carlo simulation function
 # ============================================
-simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1){
+# This function runs a monte carlo simulation
+simulate <- function(DGP,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1){
     
+    # Generate all possible values of treatment shifter (lambda)
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
+    
+    # Generate matrices for the different test stats
     pvalue_RMSPE_mat = matrix(NA,sims,lambda_vals+1)
     pvalue_tstat_mat = matrix(NA,sims,lambda_vals+1)
     pvalue_post_mat = matrix(NA,sims,lambda_vals+1)
+    
+    # Generate matrices for the actual treated and actual synthetic control
     synth_sum = matrix(0, lambda_vals+1, T1)
     treated_sum = matrix(0, lambda_vals+1, T1)
     
+    # Loop first over the different treatment shifters, then over the no. of simulations
     for (iter1 in 1:(lambda_vals+1)){
         lambda_test = lambda_seq[iter1]
         for (iter2 in 1:sims){
             
-            data_mat = gen_data(case, J1, T1)
+            # for each simulation generate a data matrix using the data function
+            data_mat = gen_data(DGP, J1, T1)
             
+            # Determine if treatment shifter is time-varying; choose relevant treatment function
             if (varying){
-                treatment_vec = gen_treatment_varying(case, lambda_test, T0, T1)
+                treatment_vec = gen_treatment_varying(DGP, lambda_test, T0, T1)
             }
             else{ 
-                treatment_vec = gen_treatment(case, lambda_test, T0, T1)
+                treatment_vec = gen_treatment(DGP, lambda_test, T0, T1)
             }
-
-            observed = apply_treatment(case, data_mat, treatment_vec)
             
+            # Observed data is what happens to the data matrix when applying treatment function
+            observed = apply_treatment(DGP, data_mat, treatment_vec)
+            
+            # Apply randomisation inference function to generate p-values
             results = ri(observed,T0,T1)
             pvalue_RMSPE_mat[iter2, iter1] = results$pvalue_RMSPE
             pvalue_tstat_mat[iter2, iter1] = results$pvalue_tstat
             pvalue_post_mat[iter2, iter1] = results$pvalue_post
             
+            # For a given lambda, sum across all simulations of actual synth & actual treatment 
             synth_sum[iter1,] = synth_sum[iter1,] + results$actual_synth_control
             treated_sum[iter1,] = treated_sum[iter1,] + results$actual_treated
         }
     }
     
+    # For a given lambda and each time period, calculate the avg actual synth & treatment  
     synth_avg = synth_sum / sims
     treated_avg = treated_sum / sims
     return(list(pvalue_RMSPE_mat=pvalue_RMSPE_mat, pvalue_tstat_mat=pvalue_tstat_mat,pvalue_post_mat=pvalue_post_mat, synth_avg=synth_avg, treated_avg=treated_avg))
@@ -249,9 +291,9 @@ simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1
 
 
 # ===========================================
-# (5) Generate size control checking function
+# (7) Generate size control checking function
 # ===========================================
-check_size_control <-function(case, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
+check_size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
     size_seq = linspace(0,1,size_vals+1)
     pvalue_plot = matrix(NA,size_vals+1,4)
     
@@ -269,10 +311,11 @@ check_size_control <-function(case, varying,lambda_vals,lambda_start,lambda_end,
            col=c("red", "blue","black"),lty=1:1, cex=0.8)
 }
 
+
 # ==========================================
-# (5) Generate power curve creation function
+# (8) Generate power curve creation function
 # ==========================================
-gen_power_curve <- function(case, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
+gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
     pvalue_plot = matrix(NA,lambda_vals+1,4)
     
@@ -291,7 +334,7 @@ gen_power_curve <- function(case, varying,lambda_vals,lambda_start,lambda_end, p
 }
 
 # ================================
-# (5) Conduct monte carlo analysis
+# (9) Conduct monte carlo analysis
 # ================================
 # Set simulation parameters
 T1  = 25
@@ -302,20 +345,20 @@ sims = 1000
 lambda_vals = 3
 lambda_start = 1
 lambda_end = 1
-case = 1
+DGP = 4
 varying = FALSE
 size_vals = 10
 size = 0.1
 
 # Run simulation
-simulation = simulate(case,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
+simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
 
-# Sims
+# Synth chart
 plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l")
 lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l")
 
 # Create size control charts
-check_size_control(case, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+check_size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
 # Create power curve charts
-gen_power_curve(case, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+gen_power_curve(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
