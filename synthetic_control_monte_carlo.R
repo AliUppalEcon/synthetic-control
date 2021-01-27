@@ -25,9 +25,13 @@ rm(list = ls())
 # install.packages("pracma")
 # install.packages("matrixcalc")
 # install.packages("limSolve")
+# install.packages("tidyverse")
+# install.packages("ggplot2")
 library("pracma")
 library("matrixcalc")
 library("limSolve")
+library("tidyverse")
+library("ggplot2")
 
 # ==============================
 # (1) Synthetic control function
@@ -106,6 +110,10 @@ ri <- function(observed,T0,T1){
     return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat,pvalue_post=pvalue_post))
 }
 
+# ==========================
+# (3) Generate data function
+# ==========================
+
 gen_data<- function(case, J1, T1){
     data_mat = matrix(NA,T1,J1)
 
@@ -162,6 +170,10 @@ gen_data<- function(case, J1, T1){
     return(data_mat)
 }
 
+# ================================
+# (4) Generate treatment functions
+# ================================
+
 gen_treatment <- function(case, lambda, T0, T1){
     treatment_vec = rep(0, T1)
     treatment_vec[(T0+1):T1] = lambda
@@ -176,12 +188,18 @@ gen_treatment_varying <- function(case, lambda, T0, T1){
     return(treatment_vec)
 }
 
+# ===========================================
+# (4) Generate treatment application function
+# ===========================================
 apply_treatment <- function(case, observed, treatment_vec){
     treated_data = observed
     treated_data[,1] = treated_data[,1] + treatment_vec # This adds the treatment vector to the first column of untreated values. This makes the first column the treated unit
     return(treated_data)
 }
 
+# ============================================
+# (4) Generate monte carlo simulation function
+# ============================================
 simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1){
     
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
@@ -214,6 +232,30 @@ simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1
     return(list(pvalue_RMSPE_mat=pvalue_RMSPE_mat, pvalue_tstat_mat=pvalue_tstat_mat,pvalue_post_mat=pvalue_post_mat))
 }
 
+# ===========================================
+# (5) Generate size control checking function
+# ===========================================
+check_size_control <-function(case, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
+    size_seq = linspace(0,1,size_vals+1)
+    pvalue_plot = matrix(NA,size_vals+1,4)
+    
+    for (i in 0:size_vals+1){
+        pvalue_plot[i,1]=size_seq[i]
+        pvalue_plot[i,2]=mean(pvalue_RMSPE_mat[,1] <= size_seq[i])
+        pvalue_plot[i,3]=mean(pvalue_tstat_mat[,1] <= size_seq[i])
+        pvalue_plot[i,4]=mean(pvalue_post_mat[,1] <= size_seq[i])
+    }
+    
+    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
+    lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
+    lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
+    legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
+           col=c("red", "blue","black"),lty=1:1, cex=0.8)
+}
+
+# ==========================================
+# (5) Generate power curve creation function
+# ==========================================
 gen_power_curve <- function(case, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
     pvalue_plot = matrix(NA,lambda_vals+1,4)
@@ -225,111 +267,40 @@ gen_power_curve <- function(case, varying,lambda_vals,lambda_start,lambda_end, p
         pvalue_plot[i,4]=mean(pvalue_post_mat[,i] <= size)
     }
     
-    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
+    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red", ylim=c(0,1))
     lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
     lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
     legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
            col=c("red", "blue","black"),lty=1:1, cex=0.8)
 }
 
-# Simulation Parameters
-
+# ================================
+# (5) Conduct monte carlo analysis
+# ================================
+# Set simulation parameters
 T1  = 25
 T0 = 15
 J0 = 19
 J1 = J0 + 1
-
-sims = 500
-lambda_vals = 5
+sims = 1000
+lambda_vals = 3
 lambda_start = 0
 lambda_end = 1
-
 case = 1
-
-varying = TRUE
-
+varying = FALSE
+size_vals = 10
 size = 0.1
 
-
+# Run simulation
 simulation = simulate(case,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
 
+# Create size control charts
+check_size_control(case, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+
+# Create power curve charts
 gen_power_curve(case, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
 
 
-
-
-
-
-
-
-
-
-
-
-
-# Size control analysis
-T1  = 25
-T0 = 15
-J0 = 19
-J1 = J0 + 1
-
-sims = 10000
-lambda_vals = 0
-lambda_start = 0
-lambda_end = 0
-
-case = 1
-
-varying = FALSE
-
-simulation = simulate(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,J0,J1)
-
-
-## Plot p-values conditional on size
-space = 10
-size = linspace(0,1,space+1)
-pvalue_plot = matrix(NA,space+1,4)
-
-for (i in 0:space+1){
-    pvalue_plot[i,1]=size[i]
-    pvalue_plot[i,2]=mean(simulation$pvalue_RMSPE_mat[,1] <= size[i])
-    pvalue_plot[i,3]=mean(simulation$pvalue_tstat_mat[,1] <= size[i])
-    pvalue_plot[i,4]=mean(simulation$pvalue_post_mat[,1] <= size[i])
-}
-
-plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
-lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
-legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
-       col=c("red", "blue","black"),lty=1:1, cex=0.8)
-
-
-
-
-# Power curve analysis
-
-
-
-
-
-
-
-
-
-
-
-for (i in 0:space+1){
-    pvalue_plot[i,1]=lambda_seq[i]
-    pvalue_plot[i,2]=mean(simulation$pvalue_RMSPE_mat[,2] <= size)
-    pvalue_plot[i,3]=mean(simulation$pvalue_tstat_mat[,2] <= size)
-    pvalue_plot[i,4]=mean(simulation$pvalue_post_mat[,2] <= size)
-}
-
-plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
-lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
-legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
-       col=c("red", "blue","black"),lty=1:1, cex=0.8)
 
 
 
