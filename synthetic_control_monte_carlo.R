@@ -64,8 +64,9 @@ ri <- function(observed,T0,T1){
     # Number of total units (treated + control)
     J1 = dim(observed)[2]
     
-    # Test statistics under consideration
+    # Test statistics under consideration (generate empty matrices)
     RMSPE = rep(NA,J1)
+    T_stat = rep(NA,J1)
 
     # RI requires looping over all units (assigning each one the treatment status)
     for (j in 1:(J1)){
@@ -85,13 +86,20 @@ ri <- function(observed,T0,T1){
         effect_post = effect[(T0+1):T1]
         
         # Results from each test statitic for a given unit j
+        ## RMSPE test
         RMSPE[j] = sqrt(mean(effect_post^2))/sqrt(mean(effect_pre^2))
+        ## T-statistic
+        average_treat = mean(effect[(T0+1):T1])
+        stdev_treat = std(effect[(T0+1):T1])
+        T_stat[j] = abs((average_treat/(T1-T0))/(stdev_treat/sqrt(T1-T0)))
     }
     
     # Pvalue for each test stat is proportion of placebos with a greater test stat
     # than actual treated unit which is the first entry in the matrix
     pvalue_RMPSE = mean(RMSPE>=RMSPE[1])
-    return(list(pvalue_RMSPE=pvalue_RMPSE))
+    pvalue_tstat = mean(T_stat>=T_stat[1])
+    
+    return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat))
 }
 
 gen_data<- function(case, J1, T1){
@@ -208,7 +216,7 @@ gen_treatment_varying <- function(case, lambda, T0, T1){
     treatment_vec = rep(0, T1)
     treatment_vec[(T0+1):T1] = lambda
     time_offset = linspace(-T0+1, T1-T0,T1)
-    treatment.vec = hadamard.prod(lambda.vec, l.vec)
+    treatment_vec = hadamard.prod(treatment_vec, time_offset)
     return(treatment_vec)
 }
 
@@ -218,23 +226,6 @@ apply_treatment <- function(case, observed, treatment_vec){
     return(treated_data)
 }
 
-# apply_treatment <- function(case, observed, treatment_vec){
-#     treated_data = observed
-#     if(case == 3){
-#         treated_data[,1] = treated_data[,1] + treatment_vec # This adds the treatment vector to the first column of untreated values. This makes the first column the treated unit
-#         # l.vec = linspace(-T0+1, T1-T0,T1) # Vector of time offsets from T0
-#         # treatment.vec = hadamard.prod(lambda.vec, l.vec) # Creates a treatment vector that is time varying like Firpo
-#     }
-#     else if (case == 2){
-#         treated_data[,1] = treated_data[,1] + treatment_vec # This adds the treatment vector to the first column of untreated values. This makes the first column the treated unit
-#     }
-#     else if (case == 1) || (case == 2){
-#         treated_data[,1] = treated_data[,1] + treatment_vec # This adds the treatment vector to the first column of untreated values. This makes the first column the treated unit
-#     }
-#     return(treated_data)
-# }
-
-
 T1  = 25
 T0 = 15
 J = 19
@@ -242,11 +233,12 @@ J1 = J + 1
 # rho = 0.99
 
 # Simulation Parameters
-sims = 1000
+sims = 500
 lambda_vals = 0
-lambda_seq = linspace(0, 0, lambda_vals+1)
+lambda_seq = linspace(0.5, 0.5, lambda_vals+1)
 
 pvalue_RMSPE_mat = matrix(NA,sims,lambda_vals+1)
+pvalue_tstat_mat = matrix(NA,sims,lambda_vals+1)
 
 case = 3
 
@@ -256,12 +248,15 @@ for (iter1 in 1:(lambda_vals+1)){
         
         data_mat = gen_data(case, J1, T1)
 
-        treatment_vec = gen_treatment(case, lambda_test, T0, T1)
+        treatment_vec = gen_treatment_varying(case, lambda_test, T0, T1)
 
         observed = apply_treatment(case, data_mat, treatment_vec)
-
-        pvalue_RMSPE = ri(observed, T0, T1)$pvalue_RMSPE
+        
+        results = ri(observed,T0,T1)
+        pvalue_RMSPE = results$pvalue_RMSPE
+        pvalue_tstat = results$pvalue_tstat
         pvalue_RMSPE_mat[iter2, iter1] = pvalue_RMSPE
+        pvalue_tstat_mat[iter2, iter1] = pvalue_tstat
     }
     
 }
@@ -269,14 +264,16 @@ for (iter1 in 1:(lambda_vals+1)){
 # Plot p-values conditional on size
 space = 10
 size = linspace(0,1,space+1)
-pvalue_plot = matrix(NA,space+1,2)
+pvalue_plot = matrix(NA,space+1,3)
 
 for (i in 0:space+1){
     pvalue_plot[i,1]=size[i]
     pvalue_plot[i,2]=colMeans(pvalue_RMSPE_mat <= size[i])
+    pvalue_plot[i,3]=colMeans(pvalue_tstat_mat <= size[i])
 }
 
 plot(pvalue_plot[,1],pvalue_plot[,2])
+lines(pvalue_plot[,1],pvalue_plot[,3])
 
 # #Rejection rates
 # size = 0.10
