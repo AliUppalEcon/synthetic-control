@@ -68,6 +68,10 @@ ri <- function(observed,T0,T1){
     # Number of total units (treated + control)
     J1 = dim(observed)[2]
     
+    # gen blah
+    actual_synth_control = rep(NA,T1)
+    actual_treated = rep(NA,T1)
+    
     # Test statistics under consideration (generate empty matrices)
     RMSPE = rep(NA,J1)
     T_stat = rep(NA,J1)
@@ -99,15 +103,19 @@ ri <- function(observed,T0,T1){
         T_stat[j] = abs((average_treat/(T1-T0))/(stdev_treat/sqrt(T1-T0)))
         ## Post-treatment average
         Post_treatment_avg[j] = mean(abs(effect[(T0+1):T1]))
+        if(j==1){
+            actual_synth_control = synth_control
+            actual_treated = treated
+        }
     }
     
     # Pvalue for each test stat is proportion of placebos with a greater test stat
     # than actual treated unit which is the first entry in the matrix
     pvalue_RMPSE = mean(RMSPE>=RMSPE[1])
-    pvalue_tstat = mean(T_stat>=T_stat[1])
-    pvalue_post = mean(Post_treatment_avg>=Post_treatment_avg[1])
+    pvalue_tstat = mean(T_stat >= T_stat[1])
+    pvalue_post = mean(Post_treatment_avg >= Post_treatment_avg[1])
     
-    return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat,pvalue_post=pvalue_post))
+    return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat, pvalue_post=pvalue_post, actual_treated=actual_treated, actual_synth_control=actual_synth_control))
 }
 
 # ==========================
@@ -206,6 +214,8 @@ simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1
     pvalue_RMSPE_mat = matrix(NA,sims,lambda_vals+1)
     pvalue_tstat_mat = matrix(NA,sims,lambda_vals+1)
     pvalue_post_mat = matrix(NA,sims,lambda_vals+1)
+    synth_sum = matrix(0, lambda_vals+1, T1)
+    treated_sum = matrix(0, lambda_vals+1, T1)
     
     for (iter1 in 1:(lambda_vals+1)){
         lambda_test = lambda_seq[iter1]
@@ -226,11 +236,17 @@ simulate <- function(case,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1
             pvalue_RMSPE_mat[iter2, iter1] = results$pvalue_RMSPE
             pvalue_tstat_mat[iter2, iter1] = results$pvalue_tstat
             pvalue_post_mat[iter2, iter1] = results$pvalue_post
+            
+            synth_sum[iter1,] = synth_sum[iter1,] + results$actual_synth_control
+            treated_sum[iter1,] = treated_sum[iter1,] + results$actual_treated
         }
-        
     }
-    return(list(pvalue_RMSPE_mat=pvalue_RMSPE_mat, pvalue_tstat_mat=pvalue_tstat_mat,pvalue_post_mat=pvalue_post_mat))
+    
+    synth_avg = synth_sum / sims
+    treated_avg = treated_sum / sims
+    return(list(pvalue_RMSPE_mat=pvalue_RMSPE_mat, pvalue_tstat_mat=pvalue_tstat_mat,pvalue_post_mat=pvalue_post_mat, synth_avg=synth_avg, treated_avg=treated_avg))
 }
+
 
 # ===========================================
 # (5) Generate size control checking function
@@ -284,7 +300,7 @@ J0 = 19
 J1 = J0 + 1
 sims = 1000
 lambda_vals = 3
-lambda_start = 0
+lambda_start = 1
 lambda_end = 1
 case = 1
 varying = FALSE
@@ -294,26 +310,12 @@ size = 0.1
 # Run simulation
 simulation = simulate(case,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
 
+# Sims
+plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l")
+lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l")
+
 # Create size control charts
 check_size_control(case, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
 # Create power curve charts
 gen_power_curve(case, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
-
-
-
-
-
-
-
-# #Rejection rates
-# size = 0.10
-# rejection.mat = pvalue_RMSPE_mat <= size
-# colMeans(rejection.mat)
-# # colMeans(pvalue_RMSPE_mat <= 0.1)
-# 
-# colMeans(pvalue_RMSPE_mat <= 0.1)
-# 
-# p.value.avg = colMeans(pvalue_RMSPE_mat)
-# p.value.avg
-
