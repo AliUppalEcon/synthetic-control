@@ -204,6 +204,13 @@ gen_treatment <- function(case, lambda, T0, T1){
     return(treatment_vec)
 }
 
+gen_treatment_varying <- function(case, lambda, T0, T1){
+    treatment_vec = rep(0, T1)
+    treatment_vec[(T0+1):T1] = lambda
+    time_offset = linspace(-T0+1, T1-T0,T1)
+    treatment.vec = hadamard.prod(lambda.vec, l.vec)
+    return(treatment_vec)
+}
 
 apply_treatment <- function(case, observed, treatment_vec){
     treated_data = observed
