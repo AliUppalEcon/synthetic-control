@@ -138,7 +138,7 @@ gen_data<- function(DGP, J1, T1){
         data_mat = matrix(rexp(J1*T1),T1,J1)
     }
     
-    # if DGP=3, draw from normal dist with twfe. 
+    # if DGP=3, draw from normal dist with twfe and unit_fe of treatment unit < unit_fe of all others. 
     else if(DGP == 3){
         # Creating T1xJ1 iid shocks
         eps = matrix(rnorm(J1*T1,0,1), T1, J1)
@@ -162,7 +162,7 @@ gen_data<- function(DGP, J1, T1){
         data_mat = unit_fe + time_fe_mat + eps
     }
     
-    # if DGP=2, draw from normal dist with twfe. 
+    # if DGP=2, draw from normal dist with twfe and unit_fe of treatment unit is the average of unit_fe of all others. 
     else if(DGP == 2){
         # Creating T1xJ1 iid shocks
         eps = matrix(rnorm(J1*T1,0,1), T1, J1)
