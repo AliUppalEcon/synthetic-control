@@ -357,6 +357,17 @@ simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,
 plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l")
 lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l")
 
+
+df = data.frame(treatment_group=c(simulation$treated_avg[1,]),synthetic_control=c(simulation$synth_avg[1,]),time=linspace(1,T1,T1))
+
+ggplot(data=df,aes(x=time, y=treatment_group, group=synthetic_control))+
+    geom_line()
+
+
+ggplot(data=df,aes(x=time))+
+    geom_line(aes(y=treatment_group), color="darkred")+
+    geom_line(aes(y=synthetic_control), color="steelblue")
+    
 # Create size control charts
 check_size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
