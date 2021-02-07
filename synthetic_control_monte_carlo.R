@@ -313,31 +313,10 @@ simulate <- function(DGP,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,
 }
 
 
-# ===========================================
-# (7) Generate size control checking function
-# ===========================================
-check_size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
-    size_seq = linspace(0,1,size_vals+1)
-    pvalue_plot = matrix(NA,size_vals+1,4)
-    
-    for (i in 0:size_vals+1){
-        pvalue_plot[i,1]=size_seq[i]
-        pvalue_plot[i,2]=mean(pvalue_RMSPE_mat[,1] <= size_seq[i])
-        pvalue_plot[i,3]=mean(pvalue_tstat_mat[,1] <= size_seq[i])
-        pvalue_plot[i,4]=mean(pvalue_post_mat[,1] <= size_seq[i])
-    }
-    
-    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red")
-    lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-    lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
-    legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
-           col=c("red", "blue","black"),lty=1:1, cex=0.8)
-}
-
-# =====================================================
-# (7a) Generate size control checking function (ggplot)
-# =====================================================
-check_size_control1 <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
+# ==================================
+# (7) Size control checking function
+# ==================================
+size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
     size_seq = linspace(0,1,size_vals+1)
     pvalue_plot = matrix(NA,size_vals+1,4)
     
@@ -363,32 +342,10 @@ check_size_control1 <-function(DGP, varying,lambda_vals,lambda_start,lambda_end,
         geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
 }
 
-
 # ==========================================
 # (8) Generate power curve creation function
 # ==========================================
 gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
-    lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
-    pvalue_plot = matrix(NA,lambda_vals+1,4)
-    
-    for (i in 0:lambda_vals+1){
-        pvalue_plot[i,1]=lambda_seq[i]
-        pvalue_plot[i,2]=mean(pvalue_RMSPE_mat[,i] <= size)
-        pvalue_plot[i,3]=mean(pvalue_tstat_mat[,i] <= size)
-        pvalue_plot[i,4]=mean(pvalue_post_mat[,i] <= size)
-    }
-    
-    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red", ylim=c(0,1))
-    lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-    lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
-    legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
-           col=c("red", "blue","black"),lty=1:1, cex=0.8)
-}
-
-# ====================================================
-# (8a) Generate power curve creation function (ggplot)
-# ====================================================
-gen_power_curve1 <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
     pvalue_plot = matrix(NA,lambda_vals+1,4)
     
@@ -413,7 +370,6 @@ gen_power_curve1 <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, p
         scale_y_continuous(limits = c(0, 1.26)) +
         geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
 }
-
 
 # ================================
 # (9) Conduct monte carlo analysis
@@ -458,9 +414,9 @@ ggplot(data=df2,aes(x=Time,y=Outcome, group=Group,colour=Group))+
         col=c("red", "blue"),lty=1:1, cex=0.8)
 
 # Create size control charts
-check_size_control1(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
 # Create power curve charts
-gen_power_curve1(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+gen_power_curve(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
 
 
