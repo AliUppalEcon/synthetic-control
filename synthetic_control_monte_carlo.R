@@ -388,7 +388,7 @@ gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pv
 # ====================================================
 # (8a) Generate power curve creation function (ggplot)
 # ====================================================
-gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
+gen_power_curve1 <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
     pvalue_plot = matrix(NA,lambda_vals+1,4)
     
@@ -398,12 +398,20 @@ gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pv
         pvalue_plot[i,3]=mean(pvalue_tstat_mat[,i] <= size)
         pvalue_plot[i,4]=mean(pvalue_post_mat[,i] <= size)
     }
+
+    # Make dataframe
+    df = data.frame(Effect=c(pvalue_plot[,1]),RMSPE=c(pvalue_plot[,2]), Tstat=c(pvalue_plot[,3]), Post=c(pvalue_plot[,4]))
     
-    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red", ylim=c(0,1))
-    lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
-    lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
-    legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
-           col=c("red", "blue","black"),lty=1:1, cex=0.8)
+    # Convert dataframe from wide to long
+    df2 = gather(df,Test,Power,RMSPE:Post,factor_key=TRUE)
+    
+    # Create ggplot synth chart
+    ggplot(data=df2,aes(x=Effect,y=Power, group=Test,colour=Test))+
+        geom_line() +
+        scale_colour_discrete(guide = 'none') +
+        scale_x_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0), add = c(0, 0.24))) +
+        scale_y_continuous(limits = c(0, 1.26)) +
+        geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
 }
 
 
@@ -416,16 +424,17 @@ T0 = 15
 J0 = 19
 J1 = J0 + 1
 sims = 1000
-lambda_vals = 0
+lambda_vals = 10
 lambda_start = 0
-lambda_end = 0
+lambda_end = 1
 DGP = 3
-varying = FALSE
+varying = TRUE
 size_vals = 10
 size = 0.1
 
 # Run simulation
 simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
+gen_power_curve1(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
 
 
 # Make dataframe
@@ -452,6 +461,6 @@ ggplot(data=df2,aes(x=Time,y=Outcome, group=Group,colour=Group))+
 check_size_control1(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
 # Create power curve charts
-gen_power_curve(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+gen_power_curve1(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
 
 
