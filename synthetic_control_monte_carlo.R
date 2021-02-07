@@ -1,9 +1,9 @@
 # ============================================================================
     
 # Programme: synthetic_control_monte_carlo
-# Author: Ali Uppal
-# Date: 27/01/2021
-# Purpose: ECON 220 E assignment
+# Authors: Cole Dreier, Ali Uppal, Steven Yee
+# Date: 07/02/2021
+# Purpose: ECON 220E Monte Carlo assignment
 
 # This programme has the following sections:
 # (0)  Preliminaries
@@ -13,16 +13,19 @@
 # (4)  Generate treatment functions
 # (5)  Generate treatment application function
 # (6)  Generate monte carlo simulation function
-# (7)  Generate size control checking function
-# (8)  Generate power curve creation function
-# (9)  Conduct monte carlo analysis
-# (10) Notes to self
+# (7)  Generate synth control chart function
+# (8)  Generate size control checking function
+# (9)  Generate power curve creation function
+# (10) Conduct monte carlo analysis
 
 # ============================================================================
 
 # ===================
 # (0) Preliminaries
 # ===================
+
+# Notes on running this code
+# 
 
 rm(list = ls())
 
@@ -39,11 +42,9 @@ library("tidyverse")
 library("ggplot2")
 library("directlabels")
 
-
 # ==============================
 # (1) Synthetic control function
 # ==============================
-
 # This function delivers the optimal weights for the synthetic control
 sc <- function(treated, control){
     # Number of units in donor pool is J0 (i.e., control units)
@@ -66,11 +67,9 @@ sc <- function(treated, control){
     return(list(weights=weights))
 }
 
-
 # ====================================
 # (2) Randomisation inference function
 # ====================================
-
 # This function generates a p-value using randomisation inference
 ri <- function(observed,T0,T1){
     # Number of total units (treated + control)
@@ -125,7 +124,6 @@ ri <- function(observed,T0,T1){
     
     return(list(pvalue_RMSPE=pvalue_RMPSE, pvalue_tstat=pvalue_tstat, pvalue_post=pvalue_post, actual_treated=actual_treated, actual_synth_control=actual_synth_control))
 }
-
 
 # ==========================
 # (3) Generate data function
@@ -243,7 +241,6 @@ gen_treatment_varying <- function(DGP, lambda, T0, T1){
     return(treatment_vec)
 }
 
-
 # ===========================================
 # (5) Generate treatment application function
 # ===========================================
@@ -255,7 +252,6 @@ apply_treatment <- function(DGP, observed, treatment_vec){
     treated_data[,1] = treated_data[,1] + treatment_vec 
     return(treated_data)
 }
-
 
 # ============================================
 # (6) Generate monte carlo simulation function
@@ -315,7 +311,7 @@ simulate <- function(DGP,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,
 # =========================================
 # (7) Generate synth control chart function
 # =========================================
-
+# This function creates the typical synthetic control charts
 synth_chart <-function(varying, treated_avg, synth_avg, T1, lambda_end){
     # Make dataframe
     df = data.frame(treatment_group=c(treated_avg[1,]),synthetic_control=c(synth_avg[1,]),Time=linspace(1,T1,T1))
@@ -346,6 +342,7 @@ synth_chart <-function(varying, treated_avg, synth_avg, T1, lambda_end){
 # ==================================
 # (8) Size control checking function
 # ==================================
+# This function creates a chart looking at size control across varying test sizes
 size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
     size_seq = linspace(0,1,size_vals+1)
     pvalue_plot = matrix(NA,size_vals+1,4)
@@ -375,6 +372,7 @@ size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue
 # ==========================================
 # (9) Generate power curve creation function
 # ==========================================
+# This function creates a chart looking at power for different effect sizes
 gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
     lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
     pvalue_plot = matrix(NA,lambda_vals+1,4)
@@ -413,7 +411,7 @@ sims = 1000
 lambda_vals = 0
 lambda_start = 0.5
 lambda_end = 0.5
-DGP = 3
+DGP = 1
 varying = TRUE
 size_vals = 10
 size = 0.1
