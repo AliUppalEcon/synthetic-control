@@ -24,9 +24,6 @@
 # (0) Preliminaries
 # ===================
 
-# Notes on running this code
-# 
-
 rm(list = ls())
 
 # install.packages("pracma")
@@ -411,19 +408,17 @@ sims = 1000
 lambda_vals = 0
 lambda_start = 0.5
 lambda_end = 0.5
-DGP = 1
-varying = TRUE
 size_vals = 10
 size = 0.1
 
-# Run simulation
-simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
-
-# Create synth control charts
-synth_chart(varying,simulation$treated_avg,simulation$synth_avg,T1,lambda_end)
-
-# Create size control charts
-size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
-
-# Create power curve charts
-gen_power_curve(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+# Run simulation for constant lambda
+varying = FALSE
+for (j in 1:2){
+    for (i in 1:3){
+        simulation = simulate(DGP=i,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
+        synth_chart(varying,simulation$treated_avg,simulation$synth_avg,T1,lambda_end)
+        size_control(DGP=i, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+        gen_power_curve(DGP=i, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+    }
+    varying=TRUE
+}
