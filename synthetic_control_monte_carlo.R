@@ -385,6 +385,28 @@ gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pv
            col=c("red", "blue","black"),lty=1:1, cex=0.8)
 }
 
+# ====================================================
+# (8a) Generate power curve creation function (ggplot)
+# ====================================================
+gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat, size){
+    lambda_seq = linspace(lambda_start, lambda_end, lambda_vals+1)
+    pvalue_plot = matrix(NA,lambda_vals+1,4)
+    
+    for (i in 0:lambda_vals+1){
+        pvalue_plot[i,1]=lambda_seq[i]
+        pvalue_plot[i,2]=mean(pvalue_RMSPE_mat[,i] <= size)
+        pvalue_plot[i,3]=mean(pvalue_tstat_mat[,i] <= size)
+        pvalue_plot[i,4]=mean(pvalue_post_mat[,i] <= size)
+    }
+    
+    plot(pvalue_plot[,1],pvalue_plot[,2],type="l",col="red", ylim=c(0,1))
+    lines(pvalue_plot[,1],pvalue_plot[,3],type="l",col="blue")
+    lines(pvalue_plot[,1],pvalue_plot[,4],type="l",col="black")
+    legend("bottomright", legend=c("RMSPE", "T-stat","Post-Treatment"),
+           col=c("red", "blue","black"),lty=1:1, cex=0.8)
+}
+
+
 # ================================
 # (9) Conduct monte carlo analysis
 # ================================
@@ -397,7 +419,7 @@ sims = 1000
 lambda_vals = 0
 lambda_start = 0
 lambda_end = 0
-DGP = 1
+DGP = 3
 varying = FALSE
 size_vals = 10
 size = 0.1
