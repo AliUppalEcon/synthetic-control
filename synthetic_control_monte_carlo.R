@@ -334,6 +334,35 @@ check_size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, 
            col=c("red", "blue","black"),lty=1:1, cex=0.8)
 }
 
+# =====================================================
+# (7a) Generate size control checking function (ggplot)
+# =====================================================
+check_size_control1 <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
+    size_seq = linspace(0,1,size_vals+1)
+    pvalue_plot = matrix(NA,size_vals+1,4)
+    
+    for (i in 0:size_vals+1){
+        pvalue_plot[i,1]=size_seq[i]
+        pvalue_plot[i,2]=mean(pvalue_RMSPE_mat[,1] <= size_seq[i])
+        pvalue_plot[i,3]=mean(pvalue_tstat_mat[,1] <= size_seq[i])
+        pvalue_plot[i,4]=mean(pvalue_post_mat[,1] <= size_seq[i])
+    }
+    
+    # Make dataframe
+    df = data.frame(Size=c(pvalue_plot[,1]),RMSPE=c(pvalue_plot[,2]), Tstat=c(pvalue_plot[,3]), Post=c(pvalue_plot[,4]))
+    
+    # Convert dataframe from wide to long
+    df2 = gather(df,Test,Result,RMSPE:Post,factor_key=TRUE)
+    
+    # Create ggplot synth chart
+    ggplot(data=df2,aes(x=Size,y=Result, group=Test,colour=Test))+
+        geom_line() +
+        scale_colour_discrete(guide = 'none') +
+        scale_x_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0), add = c(0, 0.24))) +
+        scale_y_continuous(limits = c(0, 1.26)) +
+        geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
+}
+
 
 # ==========================================
 # (8) Generate power curve creation function
@@ -365,10 +394,10 @@ T0 = 15
 J0 = 19
 J1 = J0 + 1
 sims = 1000
-lambda_vals = 10
+lambda_vals = 0
 lambda_start = 0
-lambda_end = 1
-DGP = 3
+lambda_end = 0
+DGP = 1
 varying = FALSE
 size_vals = 10
 size = 0.1
@@ -376,11 +405,6 @@ size = 0.1
 # Run simulation
 simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
 
-# Synth chart
-# plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l", col="red",xlab = "Time", ylab = "Outcome",xlim=c(0, 25), ylim=c(-2.5, 0))
-# lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l", col="blue")
-# legend("bottom", legend=c("Treatment", "Control"),
-#        col=c("red", "blue"),lty=1:1, cex=0.8)
 
 # Make dataframe
 df = data.frame(treatment_group=c(simulation$treated_avg[1,]),synthetic_control=c(simulation$synth_avg[1,]),Time=linspace(1,T1,T1))
@@ -393,16 +417,17 @@ ggplot(data=df2,aes(x=Time,y=Outcome, group=Group,colour=Group))+
     geom_line() +
     scale_colour_discrete(guide = 'none') +
     scale_x_continuous(limits = c(0, 25), expand = expansion(mult = c(0, 0.1), add = c(0, 5))) +
+    scale_y_continuous(limits = c(-2.1, 10.1)) +
     geom_dl(aes(label = Group),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.65))
 
-# ggplot(data=df,aes(x=Time))+
-#     geom_line(aes(y=treatment_group), color="darkred")+
-#     geom_line(aes(y=synthetic_control), color="steelblue")
-#     geom_dl(aes(label = Group), method = "last.points", cex = 0.8)
+# Synth chart
+ plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l", col="red",xlab = "Time", ylab = "Outcome",xlim=c(0, 25), ylim=c(-1, 1))
+ lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l", col="blue")
+ legend("bottom", legend=c("Treatment", "Control"),
+        col=c("red", "blue"),lty=1:1, cex=0.8)
 
-    
 # Create size control charts
-check_size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+check_size_control1(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
 
 # Create power curve charts
 gen_power_curve(DGP, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
