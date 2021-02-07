@@ -377,25 +377,29 @@ size = 0.1
 simulation = simulate(DGP,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
 
 # Synth chart
-plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l", col="red",xlab = "Time", ylab = "Outcome",xlim=c(0, 25), ylim=c(-2.5, 0))
-lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l", col="blue")
-legend("bottom", legend=c("Treatment", "Control"),
-       col=c("red", "blue"),lty=1:1, cex=0.8)
+# plot(linspace(1,T1,T1), simulation$treated_avg[1,], type = "l", col="red",xlab = "Time", ylab = "Outcome",xlim=c(0, 25), ylim=c(-2.5, 0))
+# lines(linspace(1,T1,T1), simulation$synth_avg[1,], type="l", col="blue")
+# legend("bottom", legend=c("Treatment", "Control"),
+#        col=c("red", "blue"),lty=1:1, cex=0.8)
 
-
+# Make dataframe
 df = data.frame(treatment_group=c(simulation$treated_avg[1,]),synthetic_control=c(simulation$synth_avg[1,]),Time=linspace(1,T1,T1))
+
+# Convert dataframe from wide to long
 df2 = gather(df,Group,Outcome,treatment_group:synthetic_control,factor_key=TRUE)
 
-ggplot(data=df,aes(x=Time))+
-    geom_line(aes(y=treatment_group), color="darkred")+
-    geom_line(aes(y=synthetic_control), color="steelblue")
-    geom_dl(aes(label = Group), method = "last.points", cex = 0.8)
-
+# Create ggplot synth chart
 ggplot(data=df2,aes(x=Time,y=Outcome, group=Group,colour=Group))+
     geom_line() +
     scale_colour_discrete(guide = 'none') +
     scale_x_continuous(limits = c(0, 25), expand = expansion(mult = c(0, 0.1), add = c(0, 5))) +
     geom_dl(aes(label = Group),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.65))
+
+# ggplot(data=df,aes(x=Time))+
+#     geom_line(aes(y=treatment_group), color="darkred")+
+#     geom_line(aes(y=synthetic_control), color="steelblue")
+#     geom_dl(aes(label = Group), method = "last.points", cex = 0.8)
+
     
 # Create size control charts
 check_size_control(DGP, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
