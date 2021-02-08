@@ -309,21 +309,30 @@ simulate <- function(DGP,sims,lambda_vals,lambda_start,lambda_end,varying,T0,T1,
 # (7) Generate synth control chart function
 # =========================================
 # This function creates the typical synthetic control charts
-synth_chart <-function(varying, treated_avg, synth_avg, T1, lambda_end){
+synth_chart <-function(varying, treated_avg, synth_avg, T1, lambda_end, lambda_val,DGP){
+    if (lambda_val==0){
+        index=1
+    }
+    else if (lambda_val==0.5){
+        index=6
+    }
+    else {
+        index=11
+    }
     # Make dataframe
-    df = data.frame(treatment_group=c(treated_avg[1,]),synthetic_control=c(synth_avg[1,]),Time=linspace(1,T1,T1))
+    df = data.frame(treatment_group=c(treated_avg[index,]),synthetic_control=c(synth_avg[index,]),Time=linspace(1,T1,T1))
 
     # Convert dataframe from wide to long
     df2 = gather(df,Group,Outcome,treatment_group:synthetic_control,factor_key=TRUE)
 
     # Different DGPs need different axes
     if (varying){
-        ymin = -2.2
-        ymax = 10*lambda_end+0.1
+        ymin = -2.3
+        ymax = 10*lambda_end+0.2
     }
     else {
-        ymin = -2.2
-        ymax = lambda_end+0.1
+        ymin = -2.3
+        ymax = lambda_end+0.2
     }
     
     # Create ggplot synth chart
@@ -334,13 +343,22 @@ synth_chart <-function(varying, treated_avg, synth_avg, T1, lambda_end){
     scale_y_continuous(limits = c(ymin, ymax)) +
     geom_dl(aes(label = Group),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.65))
     
+    # Saving the chart
+    if (varying){
+        varying1 = "TRUE"
+    }
+    else {
+        varying1 = "FALSE"
+    }
+    filename=paste("synthcontrol_","DGP_",toString(DGP),"_",varying1 ,"_",toString(lambda_val),".png",sep="")
+    ggsave(filename=filename,plot=last_plot())
     }
 
 # ==================================
 # (8) Size control checking function
 # ==================================
 # This function creates a chart looking at size control across varying test sizes
-size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
+size_control <-function(DGP, varying,lambda_vals,pvalue_RMSPE_mat, pvalue_tstat_mat, pvalue_post_mat,size_vals){
     size_seq = linspace(0,1,size_vals+1)
     pvalue_plot = matrix(NA,size_vals+1,4)
     
@@ -364,7 +382,11 @@ size_control <-function(DGP, varying,lambda_vals,lambda_start,lambda_end, pvalue
         scale_x_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0), add = c(0, 0.24))) +
         scale_y_continuous(limits = c(0, 1.26)) +
         geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
-}
+    
+    # Saving the chart
+    filename=paste("sizecontrol_","DGP_",toString(DGP),".png",sep="")
+    ggsave(filename=filename,plot=last_plot())
+    }
 
 # ==========================================
 # (9) Generate power curve creation function
@@ -394,6 +416,16 @@ gen_power_curve <- function(DGP, varying,lambda_vals,lambda_start,lambda_end, pv
         scale_x_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0), add = c(0, 0.24))) +
         scale_y_continuous(limits = c(0, 1.26)) +
         geom_dl(aes(label = Test),  method = list(dl.trans(x = x + .1), "last.bumpup",cex = 0.8))
+    
+    # Saving the chart
+    if (varying){
+        varying1 = "TRUE"
+    }
+    else {
+        varying1 = "FALSE"
+    }
+    filename=paste("powercurve_DGP_",toString(DGP),"_",varying1,".png",sep="")
+    ggsave(filename=filename,plot=last_plot())
 }
 
 # =================================
@@ -404,21 +436,34 @@ T1  = 25
 T0 = 15
 J0 = 19
 J1 = J0 + 1
-sims = 1000
-lambda_vals = 0
-lambda_start = 0.5
-lambda_end = 0.5
+sims = 50
+lambda_vals = 10
+lambda_start = 0
+lambda_end = 1
 size_vals = 10
 size = 0.1
 
-# Run simulation for constant lambda
+# Run simulation
 varying = FALSE
 for (j in 1:2){
+    # If j=1, lambda is constant. Now test each DGP (1,2,3)
     for (i in 1:3){
         simulation = simulate(DGP=i,sims,lambda_vals,lambda_start,lambda_end, varying, T0,T1,J0,J1)
-        synth_chart(varying,simulation$treated_avg,simulation$synth_avg,T1,lambda_end)
-        size_control(DGP=i, varying,lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
-        gen_power_curve(DGP=i, varying, lambda_vals, lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
+        
+        # Create synth charts across each value of lambda (note here this only works for default lambda values)
+        for (k in c(0,0.5,1)){
+            synth_chart(varying,simulation$treated_avg,simulation$synth_avg,T1,lambda_end,lambda_val=k,DGP=i)
+        }
+        
+        # Check size control only if the initial lambda value = 0 (only do for j=1 as it is same for j=2)
+        if (j==1 && linspace(lambda_start, lambda_end, lambda_vals+1)[1]==0){
+            size_control(DGP=i,varying,lambda_vals,simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat,size_vals)
+        }
+        
+        # Create power curve for each DGP
+        gen_power_curve(DGP=i, varying, lambda_vals,lambda_start,lambda_end, simulation$pvalue_RMSPE_mat, simulation$pvalue_tstat_mat, simulation$pvalue_post_mat, size)
     }
+    
+    # Repeat above with lambda varying
     varying=TRUE
 }
